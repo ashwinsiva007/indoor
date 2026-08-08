@@ -3,7 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Building2, Map, Edit3, Compass, Settings, Layers, ChevronRight } from 'lucide-react';
+import { LayoutDashboard, Building2, Map, Edit3, Compass, Settings, Layers, ChevronRight, User } from 'lucide-react';
 import { clsx } from 'clsx';
 
 const NAV_ITEMS = [
@@ -76,8 +76,30 @@ export const Sidebar: React.FC = () => {
         </div>
       </div>
 
-      {/* Footer Settings */}
-      <div className="pt-4 border-t border-slate-800">
+      {/* Profile & Footer Settings */}
+      <div className="pt-4 border-t border-slate-800/80 space-y-3">
+        {/* Profile Section */}
+        <div className="space-y-1.5">
+          <div className="px-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+            Profile
+          </div>
+          <button
+            type="button"
+            className="flex items-center justify-between px-3 py-2 rounded-xl text-xs text-slate-300 hover:bg-slate-800/60 w-full transition-all border border-slate-800/60 bg-slate-900/40 cursor-default"
+          >
+            <div className="flex items-center gap-2.5">
+              <div className="w-7 h-7 rounded-lg bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400">
+                <User className="w-4 h-4" />
+              </div>
+              <div className="text-left">
+                <span className="block font-medium text-slate-200 leading-none mb-0.5">Profile Account</span>
+                <span className="block text-[10px] text-slate-500 leading-none">View Details</span>
+              </div>
+            </div>
+            <span className="text-[10px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded border border-slate-700/50">Dummy</span>
+          </button>
+        </div>
+
         <button className="flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-slate-400 hover:text-white hover:bg-slate-800/50 w-full transition-colors">
           <Settings className="w-4 h-4 text-slate-500" />
           <span>System Config</span>
