@@ -12,6 +12,7 @@ export interface CustomItem {
   y: number;
   w?: number;
   h?: number;
+  rotation?: number;
 }
 
 interface InspectorPanelProps {
@@ -40,12 +41,22 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
   }
 
   const hasDimensions = selectedItem.type === 'room' || selectedItem.type === 'corridor';
+  const currentRotation = selectedItem.rotation || 0;
 
   const nudge = (dx: number, dy: number) => {
     onUpdateItem(selectedItem.id, {
       x: Math.max(10, Math.min(760, selectedItem.x + dx)),
       y: Math.max(10, Math.min(510, selectedItem.y + dy)),
     });
+  };
+
+  const handleRotate = (deltaDeg: number) => {
+    const newRot = (currentRotation + deltaDeg + 360) % 360;
+    onUpdateItem(selectedItem.id, { rotation: newRot });
+  };
+
+  const setRotation = (deg: number) => {
+    onUpdateItem(selectedItem.id, { rotation: (deg % 360 + 360) % 360 });
   };
 
   return (
@@ -132,6 +143,80 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
               <ArrowRight className="w-3.5 h-3.5" />
             </button>
           </div>
+        </div>
+
+        {/* Rotation Controls (Crucial for Corridor & Layout elements) */}
+        <div className="pt-1">
+          <div className="flex items-center justify-between mb-1.5">
+            <label className="text-slate-400 font-semibold block">Rotation Angle</label>
+            <span className="text-xs font-mono text-cyan-400 font-bold">{currentRotation}°</span>
+          </div>
+
+          {/* Quick Preset Buttons */}
+          <div className="grid grid-cols-5 gap-1 mb-2">
+            <button
+              onClick={() => setRotation(0)}
+              className={`py-1 rounded text-[10px] font-mono border transition-all ${
+                currentRotation === 0
+                  ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500/40 font-bold'
+                  : 'bg-slate-900 text-slate-400 border-slate-800 hover:bg-slate-800'
+              }`}
+              title="0° Horizontal"
+            >
+              0°
+            </button>
+            <button
+              onClick={() => setRotation(90)}
+              className={`py-1 rounded text-[10px] font-mono border transition-all ${
+                currentRotation === 90
+                  ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500/40 font-bold'
+                  : 'bg-slate-900 text-slate-400 border-slate-800 hover:bg-slate-800'
+              }`}
+              title="90° Vertical"
+            >
+              90°
+            </button>
+            <button
+              onClick={() => setRotation(180)}
+              className={`py-1 rounded text-[10px] font-mono border transition-all ${
+                currentRotation === 180
+                  ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500/40 font-bold'
+                  : 'bg-slate-900 text-slate-400 border-slate-800 hover:bg-slate-800'
+              }`}
+              title="180°"
+            >
+              180°
+            </button>
+            <button
+              onClick={() => setRotation(270)}
+              className={`py-1 rounded text-[10px] font-mono border transition-all ${
+                currentRotation === 270
+                  ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500/40 font-bold'
+                  : 'bg-slate-900 text-slate-400 border-slate-800 hover:bg-slate-800'
+              }`}
+              title="270°"
+            >
+              270°
+            </button>
+            <button
+              onClick={() => handleRotate(90)}
+              className="py-1 rounded text-[10px] font-mono border bg-blue-600/20 text-blue-400 border-blue-500/30 hover:bg-blue-600/30 font-bold"
+              title="Rotate +90° (or press R key)"
+            >
+              +90°
+            </button>
+          </div>
+
+          {/* Slider Control */}
+          <input
+            type="range"
+            min="0"
+            max="360"
+            step="5"
+            value={currentRotation}
+            onChange={(e) => setRotation(parseInt(e.target.value) || 0)}
+            className="w-full accent-cyan-500 bg-slate-900 cursor-pointer"
+          />
         </div>
 
         {hasDimensions && (

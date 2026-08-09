@@ -37,10 +37,11 @@ const SAMPLE_BLUEPRINT_SVG = `data:image/svg+xml;utf8,${encodeURIComponent(`
 export default function EditorPage() {
   const [activeTool, setActiveTool] = useState<ToolMode>('select');
   const [items, setItems] = useState<CustomItem[]>([
-    { id: 'r1', type: 'room', name: 'Main Lobby', x: 280, y: 340, w: 220, h: 120 },
-    { id: 'r2', type: 'room', name: 'Computer Lab', x: 70, y: 70, w: 180, h: 140 },
-    { id: 'r3', type: 'room', name: 'Library Hub', x: 530, y: 70, w: 200, h: 180 },
-    { id: 'j1', type: 'junction', name: 'Waypoint Entrance', x: 390, y: 400 },
+    { id: 'r1', type: 'room', name: 'Main Lobby', x: 280, y: 340, w: 220, h: 120, rotation: 0 },
+    { id: 'r2', type: 'room', name: 'Computer Lab', x: 70, y: 70, w: 180, h: 140, rotation: 0 },
+    { id: 'r3', type: 'room', name: 'Library Hub', x: 530, y: 70, w: 200, h: 180, rotation: 0 },
+    { id: 'c1', type: 'corridor', name: 'Main Corridor', x: 300, y: 230, w: 200, rotation: 0 },
+    { id: 'j1', type: 'junction', name: 'Waypoint Entrance', x: 390, y: 400, rotation: 0 },
   ]);
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [isSavedModalOpen, setIsSavedModalOpen] = useState(false);
@@ -163,6 +164,12 @@ export default function EditorPage() {
                 <span className="w-1.5 h-1.5 rounded-full bg-blue-400 mt-1.5 shrink-0" />
                 <span>
                   Select <strong>Select / Move</strong> tool to click and drag any room, door, corridor, or node around the canvas.
+                </span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 mt-1.5 shrink-0" />
+                <span>
+                  <strong>Rotate Corridors & Elements:</strong> Click the <strong>↻ rotate handle</strong> on canvas, press <strong>R key</strong>, or use the <strong>Inspector rotation slider / preset buttons (0°–360°)</strong>.
                 </span>
               </li>
               <li className="flex items-start gap-2">

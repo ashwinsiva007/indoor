@@ -120,6 +120,9 @@ export const EditorCanvas: React.FC<EditorCanvasProps> = ({
       } else if (e.key === 'ArrowDown') {
         e.preventDefault();
         onUpdateItem(selectedItemId, { y: Math.min(510, selectedItem.y + step) });
+      } else if (e.key === 'r' || e.key === 'R') {
+        e.preventDefault();
+        onUpdateItem(selectedItemId, { rotation: ((selectedItem.rotation || 0) + 45) % 360 });
       } else if (e.key === 'Delete' || e.key === 'Backspace') {
         if (onDeleteItem) {
           e.preventDefault();
@@ -157,6 +160,7 @@ export const EditorCanvas: React.FC<EditorCanvasProps> = ({
         y: Math.max(10, Math.min(460, y - 40)),
         w: 120,
         h: 80,
+        rotation: 0,
       };
     } else if (activeTool === 'add-door') {
       newItem = {
@@ -165,6 +169,7 @@ export const EditorCanvas: React.FC<EditorCanvasProps> = ({
         name: `Door ${items.filter((i) => i.type === 'door').length + 1}`,
         x,
         y,
+        rotation: 0,
       };
     } else if (activeTool === 'add-corridor') {
       newItem = {
@@ -174,6 +179,7 @@ export const EditorCanvas: React.FC<EditorCanvasProps> = ({
         x: Math.max(10, Math.min(650, x)),
         y,
         w: 140,
+        rotation: 0,
       };
     } else {
       // add-junction
@@ -183,6 +189,7 @@ export const EditorCanvas: React.FC<EditorCanvasProps> = ({
         name: `Waypoint Node ${items.filter((i) => i.type === 'junction').length + 1}`,
         x,
         y,
+        rotation: 0,
       };
     }
 
@@ -221,7 +228,7 @@ export const EditorCanvas: React.FC<EditorCanvasProps> = ({
           Active Tool: <strong className="text-blue-400 capitalize">{activeTool.replace('-', ' ')}</strong>
           <span className="text-slate-400 ml-1.5 hidden sm:inline">
             {activeTool === 'select'
-              ? '— Click any element to select, drag to reposition, or use arrow keys'
+              ? '— Drag to move, press R to rotate item, or click Inspector rotation controls'
               : '— Click anywhere on map canvas to place new element'}
           </span>
         </div>
@@ -274,14 +281,18 @@ export const EditorCanvas: React.FC<EditorCanvasProps> = ({
         {/* Placed Interactive Layout Items */}
         {items.map((item) => {
           const isSelected = item.id === selectedItemId;
+          const rot = item.rotation || 0;
 
           if (item.type === 'room') {
             const w = item.w || 120;
             const h = item.h || 80;
+            const cx = item.x + w / 2;
+            const cy = item.y + h / 2;
 
             return (
               <g
                 key={item.id}
+                transform={`rotate(${rot}, ${cx}, ${cy})`}
                 onPointerDown={(e) => handleItemPointerDown(e, item, false)}
                 onClick={(e) => {
                   e.stopPropagation();
@@ -343,7 +354,7 @@ export const EditorCanvas: React.FC<EditorCanvasProps> = ({
                     fontFamily="monospace"
                     className="pointer-events-none select-none opacity-80"
                   >
-                    {`${w}x${h}`}
+                    {`${w}x${h} (${rot}°)`}
                   </text>
                 )}
 
@@ -378,9 +389,13 @@ export const EditorCanvas: React.FC<EditorCanvasProps> = ({
 
           if (item.type === 'corridor') {
             const w = item.w || 140;
+            const cx = item.x + w / 2;
+            const cy = item.y;
+
             return (
               <g
                 key={item.id}
+                transform={`rotate(${rot}, ${cx}, ${cy})`}
                 onPointerDown={(e) => handleItemPointerDown(e, item, false)}
                 onClick={(e) => {
                   e.stopPropagation();
@@ -395,8 +410,8 @@ export const EditorCanvas: React.FC<EditorCanvasProps> = ({
                     x2={item.x + w + 4}
                     y2={item.y}
                     stroke="#38bdf8"
-                    strokeWidth="14"
-                    opacity="0.3"
+                    strokeWidth="16"
+                    opacity="0.35"
                     strokeLinecap="round"
                   />
                 )}
@@ -413,15 +428,39 @@ export const EditorCanvas: React.FC<EditorCanvasProps> = ({
                 <circle cx={item.x + w} cy={item.y} r="5" fill="#38bdf8" stroke="#ffffff" strokeWidth="1" />
                 <text
                   x={item.x + w / 2}
-                  y={item.y - 10}
+                  y={item.y - 12}
                   textAnchor="middle"
                   fill="#7dd3fc"
                   fontSize="10"
                   fontWeight="bold"
                   className="pointer-events-none select-none"
                 >
-                  {item.name}
+                  {item.name} {rot > 0 ? `(${rot}°)` : ''}
                 </text>
+
+                {/* Canvas Rotation Handle for Selected Corridor */}
+                {isSelected && (
+                  <g
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onUpdateItem(item.id, { rotation: (rot + 45) % 360 });
+                    }}
+                    className="cursor-pointer"
+                  >
+                    <circle cx={cx} cy={item.y - 28} r="11" fill="#0284c7" stroke="#ffffff" strokeWidth="1.5" />
+                    <text
+                      x={cx}
+                      y={item.y - 24}
+                      textAnchor="middle"
+                      fill="#ffffff"
+                      fontSize="9"
+                      fontWeight="bold"
+                      className="select-none"
+                    >
+                      ↻
+                    </text>
+                  </g>
+                )}
               </g>
             );
           }
@@ -430,7 +469,7 @@ export const EditorCanvas: React.FC<EditorCanvasProps> = ({
             return (
               <g
                 key={item.id}
-                transform={`translate(${item.x}, ${item.y})`}
+                transform={`translate(${item.x}, ${item.y}) rotate(${rot})`}
                 onPointerDown={(e) => handleItemPointerDown(e, item, false)}
                 onClick={(e) => {
                   e.stopPropagation();
@@ -477,7 +516,7 @@ export const EditorCanvas: React.FC<EditorCanvasProps> = ({
           return (
             <g
               key={item.id}
-              transform={`translate(${item.x}, ${item.y})`}
+              transform={`translate(${item.x}, ${item.y}) rotate(${rot})`}
               onPointerDown={(e) => handleItemPointerDown(e, item, false)}
               onClick={(e) => {
                 e.stopPropagation();
