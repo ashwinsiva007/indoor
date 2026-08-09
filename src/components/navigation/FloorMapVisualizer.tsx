@@ -1,8 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { GROUND_FLOOR_ROOMS, GROUND_FLOOR_NODES } from '@/data/mockData';
-import { RouteResult, MapNode } from '@/types';
+import { RouteResult, MapNode, RoomZone } from '@/types';
 import { MapPin, Navigation, ZoomIn, ZoomOut, RotateCcw, Layers } from 'lucide-react';
 import { clsx } from 'clsx';
 
@@ -11,6 +10,12 @@ interface FloorMapVisualizerProps {
   selectedSourceId: string;
   selectedDestId: string;
   onSelectNode?: (nodeId: string) => void;
+  /** Dynamic rooms from selected plan */
+  rooms: RoomZone[];
+  /** Dynamic nodes from selected plan */
+  nodes: MapNode[];
+  /** Label shown in the top status bar */
+  planLabel?: string;
 }
 
 export const FloorMapVisualizer: React.FC<FloorMapVisualizerProps> = ({
@@ -18,6 +23,9 @@ export const FloorMapVisualizer: React.FC<FloorMapVisualizerProps> = ({
   selectedSourceId,
   selectedDestId,
   onSelectNode,
+  rooms,
+  nodes,
+  planLabel = 'Floor Plan — 2D Interactive View',
 }) => {
   const [zoomLevel, setZoomLevel] = useState(1);
   const [showNodes, setShowNodes] = useState(true);
@@ -26,29 +34,42 @@ export const FloorMapVisualizer: React.FC<FloorMapVisualizerProps> = ({
   const pathPoints = routeResult?.pathNodes.map((n) => `${n.x},${n.y}`).join(' L ');
   const svgPathString = pathPoints ? `M ${pathPoints}` : '';
 
-  const sourceNode = GROUND_FLOOR_NODES.find((n) => n.id === selectedSourceId);
-  const destNode = GROUND_FLOOR_NODES.find((n) => n.id === selectedDestId);
+  const sourceNode = nodes.find((n) => n.id === selectedSourceId);
+  const destNode   = nodes.find((n) => n.id === selectedDestId);
+
+  // Compute SVG viewBox to fit all items with padding
+  const allX = [...rooms.map((r) => r.x), ...rooms.map((r) => r.x + r.width),  ...nodes.map((n) => n.x)];
+  const allY = [...rooms.map((r) => r.y), ...rooms.map((r) => r.y + r.height), ...nodes.map((n) => n.y)];
+  const PAD  = 60;
+  const minX = allX.length ? Math.min(...allX) - PAD : 0;
+  const minY = allY.length ? Math.min(...allY) - PAD : 0;
+  const maxX = allX.length ? Math.max(...allX) + PAD : 800;
+  const maxY = allY.length ? Math.max(...allY) + PAD : 680;
+  const vbWidth  = Math.max(maxX - minX, 400);
+  const vbHeight = Math.max(maxY - minY, 400);
+  const viewBox  = `${minX} ${minY} ${vbWidth} ${vbHeight}`;
 
   return (
     <div className="relative w-full h-[580px] bg-slate-950 rounded-2xl border border-slate-800/90 overflow-hidden shadow-2xl blueprint-grid flex flex-col justify-between">
+
       {/* Top Map Status Bar */}
       <div className="absolute top-4 left-4 right-4 z-20 flex items-center justify-between pointer-events-none">
-        <div className="pointer-events-auto flex items-center gap-2 px-3 py-1.5 rounded-xl glass-card border border-slate-700/80 text-xs font-semibold text-slate-200">
-          <Layers className="w-4 h-4 text-blue-400" />
-          <span>College Main Block — Ground Floor (2D Interactive Plan)</span>
+        <div className="pointer-events-auto flex items-center gap-2 px-3 py-1.5 rounded-xl glass-card border border-slate-700/80 text-xs font-semibold text-slate-200 max-w-[55%] truncate">
+          <Layers className="w-4 h-4 text-blue-400 shrink-0" />
+          <span className="truncate">{planLabel}</span>
         </div>
 
         {/* Map Controls */}
         <div className="pointer-events-auto flex items-center gap-1.5 p-1 rounded-xl glass-card border border-slate-700/80">
           <button
-            onClick={() => setZoomLevel((z) => Math.min(z + 0.15, 1.5))}
+            onClick={() => setZoomLevel((z) => Math.min(z + 0.15, 2.0))}
             className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
             title="Zoom In"
           >
             <ZoomIn className="w-4 h-4" />
           </button>
           <button
-            onClick={() => setZoomLevel((z) => Math.max(z - 0.15, 0.7))}
+            onClick={() => setZoomLevel((z) => Math.max(z - 0.15, 0.5))}
             className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
             title="Zoom Out"
           >
@@ -80,16 +101,16 @@ export const FloorMapVisualizer: React.FC<FloorMapVisualizerProps> = ({
           className="transition-transform duration-300 ease-out origin-center w-full max-w-[800px]"
           style={{ transform: `scale(${zoomLevel})` }}
         >
-          <svg viewBox="0 0 800 680" className="w-full h-auto drop-shadow-2xl selection:bg-none">
+          <svg viewBox={viewBox} className="w-full h-auto drop-shadow-2xl selection:bg-none">
             <defs>
               {/* Pulsing Gradient for Navigation Path */}
               <linearGradient id="routeGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor="#3b82f6" />
-                <stop offset="50%" stopColor="#06b6d4" />
+                <stop offset="0%"   stopColor="#3b82f6" />
+                <stop offset="50%"  stopColor="#06b6d4" />
                 <stop offset="100%" stopColor="#10b981" />
               </linearGradient>
 
-              {/* Marker Filters */}
+              {/* Glow filter */}
               <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
                 <feGaussianBlur stdDeviation="4" result="blur" />
                 <feComposite in="SourceGraphic" in2="blur" operator="over" />
@@ -98,37 +119,22 @@ export const FloorMapVisualizer: React.FC<FloorMapVisualizerProps> = ({
 
             {/* Outer Building Boundary */}
             <rect
-              x="40"
-              y="100"
-              width="720"
-              height="550"
+              x={minX + PAD / 2}
+              y={minY + PAD / 2}
+              width={vbWidth - PAD}
+              height={vbHeight - PAD}
               rx="16"
               fill="#0f172a"
-              fillOpacity="0.8"
+              fillOpacity="0.6"
               stroke="#334155"
               strokeWidth="2"
               strokeDasharray="6 4"
             />
 
-            {/* Central Courtyard / Atrium */}
-            <rect
-              x="260"
-              y="250"
-              width="280"
-              height="160"
-              rx="12"
-              fill="#1e293b"
-              stroke="#475569"
-              strokeWidth="1.5"
-            />
-            <text x="400" y="335" textAnchor="middle" fill="#64748b" fontSize="13" fontWeight="600" className="select-none">
-              Open Atrium Quad
-            </text>
-
             {/* Render Room Zones */}
-            {GROUND_FLOOR_ROOMS.map((room) => {
+            {rooms.map((room) => {
               const isSourceRoom = sourceNode?.roomCode === room.code;
-              const isDestRoom = destNode?.roomCode === room.code;
+              const isDestRoom   = destNode?.roomCode   === room.code;
 
               return (
                 <g key={room.id} className="cursor-pointer group">
@@ -141,7 +147,7 @@ export const FloorMapVisualizer: React.FC<FloorMapVisualizerProps> = ({
                     rx="8"
                     fill={isSourceRoom ? '#1e3a8a' : isDestRoom ? '#064e3b' : '#1e293b'}
                     fillOpacity="0.85"
-                    stroke={isSourceRoom ? '#3b82f6' : isDestRoom ? '#10b981' : room.color || '#475569'}
+                    stroke={isSourceRoom ? '#3b82f6' : isDestRoom ? '#10b981' : (room.color ?? '#475569')}
                     strokeWidth={isSourceRoom || isDestRoom ? '2.5' : '1.5'}
                     className="transition-all duration-200 group-hover:fill-slate-800"
                   />
@@ -149,14 +155,14 @@ export const FloorMapVisualizer: React.FC<FloorMapVisualizerProps> = ({
                   <rect
                     x={room.x + 8}
                     y={room.y + 8}
-                    width="55"
+                    width={Math.min(room.width - 16, 72)}
                     height="18"
                     rx="4"
                     fill="#0f172a"
                     fillOpacity="0.8"
                   />
                   <text
-                    x={room.x + 35}
+                    x={room.x + Math.min(room.width - 16, 72) / 2 + 8}
                     y={room.y + 21}
                     textAnchor="middle"
                     fill="#94a3b8"
@@ -176,16 +182,36 @@ export const FloorMapVisualizer: React.FC<FloorMapVisualizerProps> = ({
                     fontWeight="600"
                     className="select-none pointer-events-none"
                   >
-                    {room.name}
+                    {room.name.length > 18 ? room.name.slice(0, 16) + '…' : room.name}
                   </text>
                 </g>
               );
             })}
 
+            {/* Auto-generated edges preview (thin lines between connected nodes) */}
+            {showNodes && nodes.map((node, i) =>
+              nodes.slice(i + 1).map((other) => {
+                const d = Math.sqrt((node.x - other.x) ** 2 + (node.y - other.y) ** 2);
+                if (d > 260) return null;
+                return (
+                  <line
+                    key={`edge-${node.id}-${other.id}`}
+                    x1={node.x} y1={node.y}
+                    x2={other.x} y2={other.y}
+                    stroke="#334155"
+                    strokeWidth="1.5"
+                    strokeDasharray="4 3"
+                    strokeOpacity="0.5"
+                  />
+                );
+              })
+            )}
+
             {/* Render Waypoints / Nodes */}
             {showNodes &&
-              GROUND_FLOOR_NODES.map((node) => {
-                const isSelected = node.id === selectedSourceId || node.id === selectedDestId;
+              nodes.map((node) => {
+                const isSource   = node.id === selectedSourceId;
+                const isDest     = node.id === selectedDestId;
                 const isPathNode = routeResult?.pathNodes.some((n) => n.id === node.id);
 
                 return (
@@ -197,19 +223,27 @@ export const FloorMapVisualizer: React.FC<FloorMapVisualizerProps> = ({
                     <circle
                       cx={node.x}
                       cy={node.y}
-                      r={isSelected ? '8' : isPathNode ? '5' : '4'}
+                      r={isSource || isDest ? '8' : isPathNode ? '5' : '4'}
                       fill={
-                        node.id === selectedSourceId
-                          ? '#3b82f6'
-                          : node.id === selectedDestId
-                          ? '#10b981'
-                          : isPathNode
-                          ? '#06b6d4'
-                          : '#475569'
+                        isSource     ? '#3b82f6'
+                        : isDest     ? '#10b981'
+                        : isPathNode ? '#06b6d4'
+                        :              '#475569'
                       }
                       stroke="#0f172a"
                       strokeWidth="2"
                     />
+                    {/* Node label */}
+                    <text
+                      x={node.x}
+                      y={node.y - 10}
+                      textAnchor="middle"
+                      fill="#94a3b8"
+                      fontSize="9"
+                      className="select-none pointer-events-none"
+                    >
+                      {node.name.length > 14 ? node.name.slice(0, 12) + '…' : node.name}
+                    </text>
                   </g>
                 );
               })}
@@ -217,7 +251,7 @@ export const FloorMapVisualizer: React.FC<FloorMapVisualizerProps> = ({
             {/* Render Calculated Navigation Route Path */}
             {routeResult && svgPathString && (
               <g>
-                {/* Glow backdrop path */}
+                {/* Glow backdrop */}
                 <path
                   d={svgPathString}
                   fill="none"
@@ -228,7 +262,7 @@ export const FloorMapVisualizer: React.FC<FloorMapVisualizerProps> = ({
                   strokeLinejoin="round"
                   filter="url(#glow)"
                 />
-                {/* Animated active path line */}
+                {/* Animated active path */}
                 <path
                   d={svgPathString}
                   fill="none"
@@ -238,8 +272,7 @@ export const FloorMapVisualizer: React.FC<FloorMapVisualizerProps> = ({
                   strokeLinejoin="round"
                   className="animate-route-path"
                 />
-
-                {/* Path Nodes Pulse Markers */}
+                {/* Path node dots */}
                 {routeResult.pathNodes.map((n, idx) => (
                   <circle
                     key={`path-pt-${n.id}-${idx}`}
@@ -254,16 +287,16 @@ export const FloorMapVisualizer: React.FC<FloorMapVisualizerProps> = ({
               </g>
             )}
 
-            {/* Source Pin Marker */}
+            {/* Source Pin */}
             {sourceNode && (
               <g transform={`translate(${sourceNode.x}, ${sourceNode.y})`}>
                 <circle r="16" fill="#3b82f6" fillOpacity="0.25" className="animate-ping" />
                 <circle r="10" fill="#2563eb" stroke="#ffffff" strokeWidth="2" />
-                <circle r="4" fill="#ffffff" />
+                <circle r="4"  fill="#ffffff" />
               </g>
             )}
 
-            {/* Destination Pin Marker */}
+            {/* Destination Pin */}
             {destNode && (
               <g transform={`translate(${destNode.x}, ${destNode.y - 12})`}>
                 <g transform="translate(-12, -24)">
@@ -276,6 +309,20 @@ export const FloorMapVisualizer: React.FC<FloorMapVisualizerProps> = ({
                   />
                 </g>
               </g>
+            )}
+
+            {/* Empty plan hint */}
+            {rooms.length === 0 && nodes.length === 0 && (
+              <text
+                x={(minX + maxX) / 2}
+                y={(minY + maxY) / 2}
+                textAnchor="middle"
+                fill="#475569"
+                fontSize="16"
+                fontWeight="600"
+              >
+                No items in this plan yet. Add rooms in the Floor Layout Editor.
+              </text>
             )}
           </svg>
         </div>
@@ -297,9 +344,8 @@ export const FloorMapVisualizer: React.FC<FloorMapVisualizerProps> = ({
             <span>Optimal Path</span>
           </div>
         </div>
-
         <div className="text-slate-500 font-mono text-[11px]">
-          Floor Dimensions: 80m x 65m (Grid: 10m)
+          {nodes.length} waypoints · {rooms.length} rooms
         </div>
       </div>
     </div>
