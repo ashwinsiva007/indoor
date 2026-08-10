@@ -9,6 +9,9 @@ export interface MapNode {
   floorId: string;
   roomCode?: string;
   accessible?: boolean;
+  /** If true, this node is an internal routing waypoint (e.g. corridor endpoint)
+   *  and should not appear in user-facing location dropdowns. */
+  isInternal?: boolean;
 }
 
 export interface MapEdge {

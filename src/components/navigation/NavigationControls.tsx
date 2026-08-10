@@ -28,6 +28,10 @@ export const NavigationControls: React.FC<NavigationControlsProps> = ({
   onFindRoute,
   onSwapLocations,
 }) => {
+  // Only expose non-internal nodes (rooms, junctions, doors) — not auto-generated
+  // corridor endpoint sub-nodes like corridor_L / corridor_R
+  const selectableNodes = nodes.filter((n) => !n.isInternal);
+
   return (
     <div className="glass-card rounded-2xl p-5 border border-slate-800/80 space-y-4">
       <div className="flex items-center justify-between">
@@ -55,7 +59,7 @@ export const NavigationControls: React.FC<NavigationControlsProps> = ({
           onChange={(e) => onSourceChange(e.target.value)}
           className="w-full bg-slate-900 border border-slate-800 text-slate-100 text-sm rounded-xl px-3.5 py-2.5 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/50"
         >
-          {nodes.map((node) => (
+          {selectableNodes.map((node) => (
             <option key={`src-${node.id}`} value={node.id}>
               {node.name} {node.roomCode ? `(${node.roomCode})` : ''}
             </option>
@@ -74,7 +78,7 @@ export const NavigationControls: React.FC<NavigationControlsProps> = ({
           onChange={(e) => onDestChange(e.target.value)}
           className="w-full bg-slate-900 border border-slate-800 text-slate-100 text-sm rounded-xl px-3.5 py-2.5 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/50"
         >
-          {nodes.map((node) => (
+          {selectableNodes.map((node) => (
             <option key={`dst-${node.id}`} value={node.id}>
               {node.name} {node.roomCode ? `(${node.roomCode})` : ''}
             </option>

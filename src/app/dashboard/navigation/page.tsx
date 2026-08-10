@@ -61,8 +61,10 @@ export default function NavigationPage() {
     setEdges(e);
     setRooms(r);
     setPlanLabel(`${plan.name} (Custom Plan)`);
-    setSourceId(n[0]?.id ?? '');
-    setDestId(n[n.length - 1]?.id ?? '');
+    // Default to the first and last non-internal nodes (rooms / junctions)
+    const selectable = n.filter((node) => !node.isInternal);
+    setSourceId(selectable[0]?.id ?? '');
+    setDestId(selectable[selectable.length - 1]?.id ?? '');
     setRouteResult(null);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activePlanId, savedPlans]);
@@ -79,6 +81,9 @@ export default function NavigationPage() {
   };
 
   const handleSelectNodeFromMap = (nodeId: string) => {
+    // Don't select internal corridor endpoint nodes from map clicks
+    const node = nodes.find((n) => n.id === nodeId);
+    if (!node || node.isInternal) return;
     if (nodeId === sourceId) return;
     setDestId(nodeId);
     setRouteResult(findRoute(sourceId, nodeId, nodes, edges, accessibleOnly));

@@ -188,9 +188,9 @@ export const FloorMapVisualizer: React.FC<FloorMapVisualizerProps> = ({
               );
             })}
 
-            {/* Auto-generated edges preview (thin lines between connected nodes) */}
-            {showNodes && nodes.map((node, i) =>
-              nodes.slice(i + 1).map((other) => {
+            {/* Auto-generated edges preview: only show edges between non-internal nodes */}
+            {showNodes && nodes.filter(n => !n.isInternal).map((node, i, arr) =>
+              arr.slice(i + 1).map((other) => {
                 const d = Math.sqrt((node.x - other.x) ** 2 + (node.y - other.y) ** 2);
                 if (d > 260) return null;
                 return (
@@ -213,6 +213,12 @@ export const FloorMapVisualizer: React.FC<FloorMapVisualizerProps> = ({
                 const isSource   = node.id === selectedSourceId;
                 const isDest     = node.id === selectedDestId;
                 const isPathNode = routeResult?.pathNodes.some((n) => n.id === node.id);
+                // Internal corridor endpoint nodes: only show if on the active path
+                if (node.isInternal && !isPathNode) return null;
+
+                const nodeRadius = node.isInternal
+                  ? 3                                         // small dot for corridor waypoints
+                  : isSource || isDest ? 8 : isPathNode ? 5 : 4;
 
                 return (
                   <g
@@ -223,7 +229,7 @@ export const FloorMapVisualizer: React.FC<FloorMapVisualizerProps> = ({
                     <circle
                       cx={node.x}
                       cy={node.y}
-                      r={isSource || isDest ? '8' : isPathNode ? '5' : '4'}
+                      r={nodeRadius}
                       fill={
                         isSource     ? '#3b82f6'
                         : isDest     ? '#10b981'
@@ -231,19 +237,21 @@ export const FloorMapVisualizer: React.FC<FloorMapVisualizerProps> = ({
                         :              '#475569'
                       }
                       stroke="#0f172a"
-                      strokeWidth="2"
+                      strokeWidth={node.isInternal ? 1 : 2}
                     />
-                    {/* Node label */}
-                    <text
-                      x={node.x}
-                      y={node.y - 10}
-                      textAnchor="middle"
-                      fill="#94a3b8"
-                      fontSize="9"
-                      className="select-none pointer-events-none"
-                    >
-                      {node.name.length > 14 ? node.name.slice(0, 12) + '…' : node.name}
-                    </text>
+                    {/* Node label — hide for internal corridor nodes */}
+                    {!node.isInternal && (
+                      <text
+                        x={node.x}
+                        y={node.y - 10}
+                        textAnchor="middle"
+                        fill="#94a3b8"
+                        fontSize="9"
+                        className="select-none pointer-events-none"
+                      >
+                        {node.name.length > 14 ? node.name.slice(0, 12) + '…' : node.name}
+                      </text>
+                    )}
                   </g>
                 );
               })}
@@ -345,7 +353,7 @@ export const FloorMapVisualizer: React.FC<FloorMapVisualizerProps> = ({
           </div>
         </div>
         <div className="text-slate-500 font-mono text-[11px]">
-          {nodes.length} waypoints · {rooms.length} rooms
+          {nodes.filter(n => !n.isInternal).length} waypoints · {rooms.length} rooms
         </div>
       </div>
     </div>

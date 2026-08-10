@@ -76,14 +76,18 @@ export function findRoute(
   let curr: string | undefined = endNodeId;
 
   if (distances.get(endNodeId) === Infinity) {
-    // Fallback if no direct route (just return start and end with mock edge)
-    pathNodeIds.push(startNodeId, endNodeId);
-  } else {
-    while (curr) {
-      pathNodeIds.unshift(curr);
-      curr = previous.get(curr);
-    }
+    // No reachable path — return null so the map shows nothing instead of a
+    // misleading diagonal straight line.
+    return null;
   }
+
+  while (curr) {
+    pathNodeIds.unshift(curr);
+    curr = previous.get(curr);
+  }
+
+  // Guard: if path reconstruction failed (shouldn't happen) return null
+  if (pathNodeIds.length < 2) return null;
 
   const pathNodes = pathNodeIds.map(id => nodeMap.get(id)!).filter(Boolean);
 
