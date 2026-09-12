@@ -14,7 +14,6 @@ import {
   Check,
 } from 'lucide-react';
 import {
-  BOUNDARY_POINTS,
   BOUNDARY_POLYGON,
   MAP_CENTER,
 } from '@/data/locations';
@@ -23,7 +22,7 @@ export default function GoogleMap() {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const tileLayerRef = useRef<any>(null);
-  const polygonLayerRef = useRef<any>(null);
+  const maskLayerRef = useRef<any>(null);
   const clickMarkerRef = useRef<any>(null);
 
   const [mapType, setMapType] = useState<'roadmap' | 'satellite'>('roadmap');
@@ -46,7 +45,7 @@ export default function GoogleMap() {
           shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
         });
 
-        // Set maximum bounds around the blue polygon area
+        // Strict bounds to keep user within the area
         const southWest = L.latLng(11.036000, 77.070500);
         const northEast = L.latLng(11.043500, 77.079000);
         const maxBounds = L.latLngBounds(southWest, northEast);
@@ -56,10 +55,10 @@ export default function GoogleMap() {
           zoom: MAP_CENTER.zoom,
           zoomControl: false,
           attributionControl: false,
-          minZoom: 15,
+          minZoom: 16,
           maxZoom: 21,
           maxBounds: maxBounds,
-          maxBoundsViscosity: 0.8,
+          maxBoundsViscosity: 0.9,
         });
 
         mapInstanceRef.current = map;
@@ -98,18 +97,18 @@ export default function GoogleMap() {
           clickMarkerRef.current = marker;
         });
 
-        // Fit map smoothly into the designated blue boundary polygon
+        // Fit map precisely onto the polygon area
         const polygonBounds = L.latLngBounds(
           BOUNDARY_POLYGON.map(([lat, lng]) => L.latLng(lat, lng))
         );
         map.fitBounds(polygonBounds, {
-          padding: [50, 50],
+          padding: [30, 30],
           maxZoom: 18,
         });
       }
 
       updateTiles(L);
-      drawBoundaryPolygon(L);
+      drawOutsideMask(L);
     });
 
     return () => {
@@ -117,7 +116,7 @@ export default function GoogleMap() {
     };
   }, []);
 
-  // Update Tile Layer with Clean High-Res Google Tiles (No Watermarks)
+  // Update Tile Layer with Clean Google Maps Tiles
   const updateTiles = (L: any) => {
     const map = mapInstanceRef.current;
     if (!map) return;
@@ -126,7 +125,6 @@ export default function GoogleMap() {
       map.removeLayer(tileLayerRef.current);
     }
 
-    // Google Maps Vector / Satellite Tiles without watermarks
     const url =
       mapType === 'satellite'
         ? 'https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}'
@@ -145,31 +143,41 @@ export default function GoogleMap() {
     if (!mapInstanceRef.current) return;
     import('leaflet').then((L) => {
       updateTiles(L);
+      drawOutsideMask(L);
     });
   }, [mapType]);
 
-  // Draw ONLY the Blue Marked Line Polygon
-  const drawBoundaryPolygon = (L: any) => {
+  // Mask everything outside the polygon & remove the blue line
+  const drawOutsideMask = (L: any) => {
     const map = mapInstanceRef.current;
     if (!map) return;
 
-    if (polygonLayerRef.current) {
-      map.removeLayer(polygonLayerRef.current);
+    if (maskLayerRef.current) {
+      map.removeLayer(maskLayerRef.current);
     }
 
-    // Solid prominent blue line around the boundary
-    const polygon = L.polygon(BOUNDARY_POLYGON, {
-      color: '#1a73e8', // Pure Google Maps blue
-      weight: 3.5,
-      opacity: 0.95,
-      fillColor: '#4285f4',
-      fillOpacity: 0.12,
-      lineCap: 'round',
-      lineJoin: 'round',
+    // Outer world ring with the inner polygon hole
+    const worldMask = [
+      [
+        [-85, -180],
+        [-85, 180],
+        [85, 180],
+        [85, -180],
+      ],
+      BOUNDARY_POLYGON,
+    ];
+
+    const mask = L.polygon(worldMask, {
+      stroke: false, // Blue line removed!
+      color: 'transparent',
+      weight: 0,
+      fillColor: mapType === 'satellite' ? '#0b0f19' : '#f8f9fa',
+      fillOpacity: 1, // Completely hides everything outside
+      interactive: false,
     });
 
-    polygon.addTo(map);
-    polygonLayerRef.current = polygon;
+    mask.addTo(map);
+    maskLayerRef.current = mask;
   };
 
   const handleCopyCoord = () => {
@@ -201,27 +209,27 @@ export default function GoogleMap() {
         BOUNDARY_POLYGON.map(([lat, lng]) => L.latLng(lat, lng))
       );
       mapInstanceRef.current.fitBounds(bounds, {
-        padding: [50, 50],
+        padding: [30, 30],
         animate: true,
       });
     });
   };
 
   return (
-    <div className="relative w-screen h-screen overflow-hidden bg-[#e5e3df] select-none font-sans">
-      {/* Search Bar (Google Maps style) */}
-      <div className="absolute top-4 left-4 z-30 max-w-[390px] w-[calc(100vw-32px)]">
+    <div className="relative w-full h-[100dvh] overflow-hidden bg-[#f8f9fa] dark:bg-[#0b0f19] select-none font-sans">
+      {/* Mobile-Friendly Google Maps Floating Search Bar */}
+      <div className="absolute top-3 inset-x-3 sm:inset-x-auto sm:left-4 sm:w-[380px] z-30">
         <form
           onSubmit={handleSearchCoord}
-          className="bg-white rounded-xl shadow-lg border border-slate-200/80 overflow-hidden flex items-center px-3.5 py-2.5 gap-2.5"
+          className="bg-white dark:bg-slate-900 rounded-2xl shadow-lg border border-slate-200/90 dark:border-slate-800 overflow-hidden flex items-center px-3.5 py-2.5 gap-2.5"
         >
-          <Search className="w-5 h-5 text-slate-500 shrink-0" />
+          <Search className="w-5 h-5 text-slate-400 shrink-0" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search location (lat, lng)..."
-            className="flex-1 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none"
+            placeholder="Search coordinates (lat, lng)..."
+            className="flex-1 text-sm bg-transparent text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none"
           />
           {searchQuery && (
             <button
@@ -232,7 +240,7 @@ export default function GoogleMap() {
               <X className="w-4 h-4" />
             </button>
           )}
-          <div className="w-[1px] h-5 bg-slate-200" />
+          <div className="w-[1px] h-5 bg-slate-200 dark:bg-slate-700" />
           <a
             href={
               clickedCoord
@@ -242,44 +250,44 @@ export default function GoogleMap() {
             target="_blank"
             rel="noreferrer"
             title="Get Directions"
-            className="w-8 h-8 rounded-full bg-[#1a73e8] hover:bg-[#1557b0] text-white flex items-center justify-center shadow-md transition-colors shrink-0"
+            className="w-8 h-8 rounded-xl bg-[#1a73e8] hover:bg-[#1557b0] text-white flex items-center justify-center shadow-md transition-transform active:scale-95 shrink-0"
           >
             <Navigation className="w-4 h-4 fill-white" />
           </a>
         </form>
       </div>
 
-      {/* Coordinate Details Card (When a point or location is clicked) */}
+      {/* Coordinate Details Bottom Sheet / Card on Mobile */}
       {clickedCoord && (
-        <div className="absolute bottom-6 left-4 z-30 w-[calc(100vw-32px)] sm:w-[350px] bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-200">
-          <div className="p-4 space-y-3">
+        <div className="absolute bottom-4 inset-x-3 sm:inset-x-auto sm:left-4 sm:w-[340px] z-30 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200/90 dark:border-slate-800 overflow-hidden animate-in fade-in slide-in-from-bottom-3 duration-200">
+          <div className="p-3.5 space-y-2.5">
             <div className="flex items-start justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center text-red-600">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-red-100 dark:bg-red-950/50 flex items-center justify-center text-red-600 dark:text-red-400 shrink-0">
                   <MapPin className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-slate-900">Selected Location</h3>
-                  <div className="text-xs font-mono text-slate-600">
+                  <h3 className="text-xs font-bold text-slate-900 dark:text-slate-100">Location</h3>
+                  <div className="text-xs font-mono text-slate-600 dark:text-slate-300">
                     {clickedCoord.lat.toFixed(6)}, {clickedCoord.lng.toFixed(6)}
                   </div>
                 </div>
               </div>
               <button
                 onClick={() => setClickedCoord(null)}
-                className="p-1 text-slate-400 hover:text-slate-600 rounded-full"
+                className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-full"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            {/* Quick Actions */}
-            <div className="flex items-center gap-2 pt-1 border-t border-slate-100">
+            {/* Quick Action Buttons */}
+            <div className="flex items-center gap-2 pt-1 border-t border-slate-100 dark:border-slate-800">
               <a
                 href={`https://www.google.com/maps/dir/?api=1&destination=${clickedCoord.lat},${clickedCoord.lng}`}
                 target="_blank"
                 rel="noreferrer"
-                className="flex-1 py-2 px-3 rounded-xl bg-[#1a73e8] hover:bg-[#1557b0] text-white text-xs font-semibold flex items-center justify-center gap-1.5 shadow-sm transition-colors"
+                className="flex-1 py-2 px-3 rounded-xl bg-[#1a73e8] hover:bg-[#1557b0] text-white text-xs font-semibold flex items-center justify-center gap-1.5 shadow-sm active:scale-95 transition-transform"
               >
                 <Navigation className="w-3.5 h-3.5 fill-white" />
                 <span>Directions</span>
@@ -287,7 +295,7 @@ export default function GoogleMap() {
 
               <button
                 onClick={handleCopyCoord}
-                className="py-2 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors"
+                className="py-2 px-3 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold flex items-center justify-center gap-1.5 active:scale-95 transition-transform"
               >
                 {copied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
                 <span>{copied ? 'Copied' : 'Copy'}</span>
@@ -300,39 +308,39 @@ export default function GoogleMap() {
       {/* Map Canvas */}
       <div ref={mapContainerRef} className="w-full h-full z-0" />
 
-      {/* Bottom Left Layers Button (Map / Satellite) */}
-      <div className="absolute bottom-6 left-4 sm:left-[370px] z-30">
+      {/* Bottom Floating Layer Button */}
+      <div className="absolute bottom-4 left-3 sm:left-4 z-20">
         <button
           onClick={() => setMapType(mapType === 'roadmap' ? 'satellite' : 'roadmap')}
-          className="bg-white rounded-xl shadow-lg border border-slate-200 px-3 py-2 flex items-center gap-2 text-xs font-semibold text-slate-800 hover:bg-slate-50 transition-colors"
+          className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-2xl shadow-xl border border-slate-200/90 dark:border-slate-800 px-3 py-2 flex items-center gap-2 text-xs font-semibold text-slate-800 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800 active:scale-95 transition-all"
         >
           <Layers className="w-4 h-4 text-[#1a73e8]" />
-          <span>{mapType === 'roadmap' ? 'Satellite' : 'Map View'}</span>
+          <span>{mapType === 'roadmap' ? 'Satellite' : 'Roadmap'}</span>
         </button>
       </div>
 
-      {/* Bottom Right Controls (Zoom +/-, Recenter) */}
-      <div className="absolute bottom-6 right-4 z-30 flex flex-col gap-2">
+      {/* Bottom Floating Controls (Zoom +/-, Recenter) */}
+      <div className="absolute bottom-4 right-3 sm:right-4 z-20 flex flex-col gap-2">
         <button
           onClick={handleRecenter}
-          title="Fit to Location Boundary"
-          className="w-10 h-10 rounded-xl bg-white border border-slate-200 shadow-lg flex items-center justify-center text-slate-700 hover:bg-slate-50 transition-colors"
+          title="Fit to Area"
+          className="w-10 h-10 rounded-2xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200/90 dark:border-slate-800 shadow-xl flex items-center justify-center text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 active:scale-95 transition-all"
         >
           <LocateFixed className="w-5 h-5 text-[#1a73e8]" />
         </button>
 
-        <div className="bg-white rounded-xl border border-slate-200 shadow-lg overflow-hidden flex flex-col">
+        <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-xl overflow-hidden flex flex-col">
           <button
             onClick={() => mapInstanceRef.current?.zoomIn()}
             title="Zoom In"
-            className="w-10 h-10 flex items-center justify-center text-slate-700 hover:bg-slate-50 border-b border-slate-100"
+            className="w-10 h-10 flex items-center justify-center text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 active:bg-slate-200 border-b border-slate-100 dark:border-slate-800"
           >
             <Plus className="w-5 h-5" />
           </button>
           <button
             onClick={() => mapInstanceRef.current?.zoomOut()}
             title="Zoom Out"
-            className="w-10 h-10 flex items-center justify-center text-slate-700 hover:bg-slate-50"
+            className="w-10 h-10 flex items-center justify-center text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 active:bg-slate-200"
           >
             <Minus className="w-5 h-5" />
           </button>
