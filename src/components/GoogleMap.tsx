@@ -10,7 +10,6 @@ import {
   Minus,
   LocateFixed,
   MapPin,
-  ExternalLink,
   Copy,
   Check,
 } from 'lucide-react';
@@ -25,7 +24,6 @@ export default function GoogleMap() {
   const mapInstanceRef = useRef<any>(null);
   const tileLayerRef = useRef<any>(null);
   const polygonLayerRef = useRef<any>(null);
-  const markerLayerRef = useRef<any>(null);
   const clickMarkerRef = useRef<any>(null);
 
   const [mapType, setMapType] = useState<'roadmap' | 'satellite'>('roadmap');
@@ -48,7 +46,7 @@ export default function GoogleMap() {
           shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
         });
 
-        // Set maximum bounds around the designated area to lock the map inside this location
+        // Set maximum bounds around the blue polygon area
         const southWest = L.latLng(11.036000, 77.070500);
         const northEast = L.latLng(11.043500, 77.079000);
         const maxBounds = L.latLngBounds(southWest, northEast);
@@ -59,7 +57,7 @@ export default function GoogleMap() {
           zoomControl: false,
           attributionControl: false,
           minZoom: 15,
-          maxZoom: 20,
+          maxZoom: 21,
           maxBounds: maxBounds,
           maxBoundsViscosity: 0.8,
         });
@@ -100,12 +98,12 @@ export default function GoogleMap() {
           clickMarkerRef.current = marker;
         });
 
-        // Fit map smoothly into the designated boundary polygon
+        // Fit map smoothly into the designated blue boundary polygon
         const polygonBounds = L.latLngBounds(
           BOUNDARY_POLYGON.map(([lat, lng]) => L.latLng(lat, lng))
         );
         map.fitBounds(polygonBounds, {
-          padding: [60, 60],
+          padding: [50, 50],
           maxZoom: 18,
         });
       }
@@ -119,7 +117,7 @@ export default function GoogleMap() {
     };
   }, []);
 
-  // Update Tile Layer (Roadmap or Satellite)
+  // Update Tile Layer with Clean High-Res Google Tiles (No Watermarks)
   const updateTiles = (L: any) => {
     const map = mapInstanceRef.current;
     if (!map) return;
@@ -128,14 +126,15 @@ export default function GoogleMap() {
       map.removeLayer(tileLayerRef.current);
     }
 
+    // Google Maps Vector / Satellite Tiles without watermarks
     const url =
       mapType === 'satellite'
-        ? 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
-        : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
+        ? 'https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}'
+        : 'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}';
 
     const tiles = L.tileLayer(url, {
-      maxZoom: 20,
-      subdomains: 'abcd',
+      maxZoom: 21,
+      maxNativeZoom: 20,
     });
 
     tiles.addTo(map);
@@ -149,7 +148,7 @@ export default function GoogleMap() {
     });
   }, [mapType]);
 
-  // Draw Bounded Location Polygon
+  // Draw ONLY the Blue Marked Line Polygon
   const drawBoundaryPolygon = (L: any) => {
     const map = mapInstanceRef.current;
     if (!map) return;
@@ -157,49 +156,20 @@ export default function GoogleMap() {
     if (polygonLayerRef.current) {
       map.removeLayer(polygonLayerRef.current);
     }
-    if (markerLayerRef.current) {
-      map.removeLayer(markerLayerRef.current);
-    }
 
-    // Draw the defined boundary polygon
+    // Solid prominent blue line around the boundary
     const polygon = L.polygon(BOUNDARY_POLYGON, {
-      color: '#1a73e8',
-      weight: 3,
+      color: '#1a73e8', // Pure Google Maps blue
+      weight: 3.5,
+      opacity: 0.95,
       fillColor: '#4285f4',
-      fillOpacity: 0.15,
-      dashArray: '4, 4',
+      fillOpacity: 0.12,
+      lineCap: 'round',
+      lineJoin: 'round',
     });
+
     polygon.addTo(map);
     polygonLayerRef.current = polygon;
-
-    // Add clean corner point markers (A, B, C, D, E, F)
-    const markerGroup = L.layerGroup();
-
-    BOUNDARY_POINTS.forEach((pt) => {
-      const pointHtml = `
-        <div class="flex items-center justify-center w-6 h-6 rounded-full bg-[#1a73e8] border-2 border-white shadow-md text-white font-bold text-[11px] cursor-pointer hover:scale-110 transition-transform">
-          ${pt.id}
-        </div>
-      `;
-
-      const icon = L.divIcon({
-        className: 'custom-point-marker',
-        html: pointHtml,
-        iconSize: [24, 24],
-        iconAnchor: [12, 12],
-      });
-
-      const m = L.marker([pt.lat, pt.lng], { icon });
-      m.on('click', (e: any) => {
-        L.DomEvent.stopPropagation(e);
-        setClickedCoord({ lat: pt.lat, lng: pt.lng });
-      });
-
-      markerGroup.addLayer(m);
-    });
-
-    markerGroup.addTo(map);
-    markerLayerRef.current = markerGroup;
   };
 
   const handleCopyCoord = () => {
@@ -231,7 +201,7 @@ export default function GoogleMap() {
         BOUNDARY_POLYGON.map(([lat, lng]) => L.latLng(lat, lng))
       );
       mapInstanceRef.current.fitBounds(bounds, {
-        padding: [60, 60],
+        padding: [50, 50],
         animate: true,
       });
     });
@@ -250,7 +220,7 @@ export default function GoogleMap() {
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search location or coordinates (lat, lng)..."
+            placeholder="Search location (lat, lng)..."
             className="flex-1 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none"
           />
           {searchQuery && (
