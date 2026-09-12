@@ -1,130 +1,30 @@
-import { MapPlace } from '@/types';
+export interface BoundaryPoint {
+  id: string;
+  name: string;
+  lat: number;
+  lng: number;
+}
 
-export const SRI_SHAKTHI_LOCATION = {
-  name: 'Sri Shakthi Institute of Engineering and Technology',
-  lat: 11.035635,
-  lng: 77.069387,
-  zoom: 17,
-  address: 'L & T By - Pass, Sri Shakthi Nagar, Chinniyampalayam, Neelambur, Coimbatore, Tamil Nadu 641062',
-  rating: 4.6,
-  reviewsCount: 1480,
-  openStatus: 'Open · Closes 5:30 PM',
-  phone: '+91 422 236 9900',
-  website: 'https://www.siet.ac.in',
-  imageUrl: 'https://images.unsplash.com/photo-1562774053-701939374585?w=800&auto=format&fit=crop&q=80',
-};
-
-export const PLACES_IN_AREA: MapPlace[] = [
-  {
-    id: 'siet-main',
-    name: 'Sri Shakthi Institute of Engineering and Technology',
-    category: 'University / College',
-    lat: 11.035635,
-    lng: 77.069387,
-    address: 'L & T By - Pass, Sri Shakthi Nagar, Neelambur, Coimbatore, Tamil Nadu 641062',
-    rating: 4.6,
-    reviewsCount: 1480,
-    openStatus: 'Open · Closes 5:30 PM',
-    phone: '+91 422 236 9900',
-    website: 'https://www.siet.ac.in',
-    imageUrl: 'https://images.unsplash.com/photo-1562774053-701939374585?w=800&auto=format&fit=crop&q=80',
-  },
-  {
-    id: 'cse-block',
-    name: 'Computer Science & AI Block (SIET)',
-    category: 'Academic Department',
-    lat: 11.035920,
-    lng: 77.069720,
-    address: 'East Quadrangle, Sri Shakthi Campus, Neelambur, Coimbatore',
-    rating: 4.9,
-    reviewsCount: 310,
-    openStatus: 'Open · Closes 6:00 PM',
-    phone: '+91 422 236 9912',
-    imageUrl: 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=800&auto=format&fit=crop&q=80',
-  },
-  {
-    id: 'library',
-    name: 'Dr. APJ Abdul Kalam Central Library',
-    category: 'Library',
-    lat: 11.035760,
-    lng: 77.069160,
-    address: 'West Academic Plaza, Sri Shakthi Campus, Coimbatore',
-    rating: 4.8,
-    reviewsCount: 420,
-    openStatus: 'Open · Closes 8:00 PM',
-    phone: '+91 422 236 9920',
-    imageUrl: 'https://images.unsplash.com/photo-1521587760476-6c12a4b040da?w=800&auto=format&fit=crop&q=80',
-  },
-  {
-    id: 'auditorium',
-    name: 'Sri Shakthi Convention Center & Auditorium',
-    category: 'Auditorium',
-    lat: 11.036120,
-    lng: 77.069220,
-    address: 'North-West Events Zone, Sri Shakthi Campus, Coimbatore',
-    rating: 4.8,
-    reviewsCount: 280,
-    openStatus: 'Open for Events',
-    imageUrl: 'https://images.unsplash.com/photo-1511578314322-379afb476865?w=800&auto=format&fit=crop&q=80',
-  },
-  {
-    id: 'food-court',
-    name: 'Sri Shakthi Food Court & Cafeteria',
-    category: 'Cafeteria / Restaurant',
-    lat: 11.035310,
-    lng: 77.068820,
-    address: 'Central Campus, Sri Shakthi Nagar, Neelambur, Coimbatore',
-    rating: 4.5,
-    reviewsCount: 540,
-    openStatus: 'Open · 7:30 AM - 7:30 PM',
-    imageUrl: 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=800&auto=format&fit=crop&q=80',
-  },
-  {
-    id: 'sports-ground',
-    name: 'Sri Shakthi Sports Arena & Cricket Stadium',
-    category: 'Stadium / Sports Complex',
-    lat: 11.034620,
-    lng: 77.070210,
-    address: 'Athletic Ground, Sri Shakthi Campus, Coimbatore',
-    rating: 4.8,
-    reviewsCount: 390,
-    openStatus: 'Open · 6:00 AM - 7:00 PM',
-    imageUrl: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=800&auto=format&fit=crop&q=80',
-  },
-  {
-    id: 'boys-hostel',
-    name: 'Sri Shakthi Boys Hostel',
-    category: 'Student Residence',
-    lat: 11.034320,
-    lng: 77.068920,
-    address: 'Hostel Complex, Sri Shakthi Campus, Coimbatore',
-    rating: 4.5,
-    reviewsCount: 210,
-    openStatus: 'Open 24 Hours (Residents)',
-    imageUrl: 'https://images.unsplash.com/photo-1555854877-bab0e564b8d5?w=800&auto=format&fit=crop&q=80',
-  },
-  {
-    id: 'girls-hostel',
-    name: 'Sri Shakthi Girls Hostel',
-    category: 'Student Residence',
-    lat: 11.036320,
-    lng: 77.070120,
-    address: 'North Residential Wing, Sri Shakthi Campus, Coimbatore',
-    rating: 4.7,
-    reviewsCount: 195,
-    openStatus: 'Open 24 Hours (Residents)',
-    imageUrl: 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=800&auto=format&fit=crop&q=80',
-  },
-  {
-    id: 'main-gate',
-    name: 'Sri Shakthi Main Entrance Gate',
-    category: 'Campus Entrance',
-    lat: 11.036520,
-    lng: 77.068620,
-    address: 'L&T By-Pass Road, Sri Shakthi Nagar, Neelambur, Coimbatore',
-    rating: 4.7,
-    reviewsCount: 115,
-    openStatus: 'Open 24 Hours',
-    imageUrl: 'https://images.unsplash.com/photo-1541888946425-d0fbb18086f6?w=800&auto=format&fit=crop&q=80',
-  },
+export const BOUNDARY_POINTS: BoundaryPoint[] = [
+  { id: 'A', name: 'Point A', lat: 11.041370, lng: 77.072844 },
+  { id: 'B', name: 'Point B', lat: 11.041649, lng: 77.076879 },
+  { id: 'C', name: 'Point C', lat: 11.040850, lng: 77.076797 },
+  { id: 'D', name: 'Point D', lat: 11.040819, lng: 77.076257 },
+  { id: 'E', name: 'Point E', lat: 11.038112, lng: 77.076091 },
+  { id: 'F', name: 'Point F', lat: 11.038146, lng: 77.073014 },
 ];
+
+export const BOUNDARY_POLYGON: [number, number][] = [
+  [11.041370, 77.072844], // A
+  [11.041649, 77.076879], // B
+  [11.040850, 77.076797], // C
+  [11.040819, 77.076257], // D
+  [11.038112, 77.076091], // E
+  [11.038146, 77.073014], // F
+];
+
+export const MAP_CENTER = {
+  lat: 11.03988,
+  lng: 77.07486,
+  zoom: 17,
+};

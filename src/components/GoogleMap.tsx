@@ -5,35 +5,33 @@ import {
   Search,
   X,
   Navigation,
-  Star,
-  MapPin,
-  Phone,
-  Globe,
-  Clock,
   Layers,
   Plus,
   Minus,
   LocateFixed,
-  Share2,
-  Bookmark,
+  MapPin,
   ExternalLink,
+  Copy,
+  Check,
 } from 'lucide-react';
-import { SRI_SHAKTHI_LOCATION, PLACES_IN_AREA } from '@/data/locations';
-import { MapPlace } from '@/types';
+import {
+  BOUNDARY_POINTS,
+  BOUNDARY_POLYGON,
+  MAP_CENTER,
+} from '@/data/locations';
 
 export default function GoogleMap() {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const tileLayerRef = useRef<any>(null);
-  const markersGroupRef = useRef<any>(null);
+  const polygonLayerRef = useRef<any>(null);
+  const markerLayerRef = useRef<any>(null);
+  const clickMarkerRef = useRef<any>(null);
 
-  const [query, setQuery] = useState('');
-  const [selectedPlace, setSelectedPlace] = useState<MapPlace | null>(PLACES_IN_AREA[0]);
-  const [activeCategory, setActiveCategory] = useState<string>('All');
   const [mapType, setMapType] = useState<'roadmap' | 'satellite'>('roadmap');
-  const [isSaved, setIsSaved] = useState(false);
+  const [clickedCoord, setClickedCoord] = useState<{ lat: number; lng: number } | null>(null);
   const [copied, setCopied] = useState(false);
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Initialize Map
   useEffect(() => {
@@ -50,24 +48,70 @@ export default function GoogleMap() {
           shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
         });
 
+        // Set maximum bounds around the designated area to lock the map inside this location
+        const southWest = L.latLng(11.036000, 77.070500);
+        const northEast = L.latLng(11.043500, 77.079000);
+        const maxBounds = L.latLngBounds(southWest, northEast);
+
         const map = L.map(mapContainerRef.current, {
-          center: [SRI_SHAKTHI_LOCATION.lat, SRI_SHAKTHI_LOCATION.lng],
-          zoom: SRI_SHAKTHI_LOCATION.zoom,
+          center: [MAP_CENTER.lat, MAP_CENTER.lng],
+          zoom: MAP_CENTER.zoom,
           zoomControl: false,
           attributionControl: false,
+          minZoom: 15,
           maxZoom: 20,
-          minZoom: 12,
+          maxBounds: maxBounds,
+          maxBoundsViscosity: 0.8,
         });
 
         mapInstanceRef.current = map;
 
-        map.on('click', () => {
-          setIsDropdownOpen(false);
+        // Click listener to place pin & display coordinates
+        map.on('click', (e: any) => {
+          const lat = parseFloat(e.latlng.lat.toFixed(6));
+          const lng = parseFloat(e.latlng.lng.toFixed(6));
+          setClickedCoord({ lat, lng });
+
+          // Update Click Marker
+          if (clickMarkerRef.current) {
+            map.removeLayer(clickMarkerRef.current);
+          }
+
+          const pinHtml = `
+            <div class="flex flex-col items-center cursor-pointer transform -translate-y-2">
+              <div class="w-7 h-7 rounded-full bg-[#ea4335] border-2 border-white shadow-lg flex items-center justify-center text-white">
+                <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none">
+                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                  <circle cx="12" cy="10" r="3"></circle>
+                </svg>
+              </div>
+              <div class="w-0 h-0 border-l-[4px] border-l-transparent border-r-[4px] border-r-transparent border-t-[5px] border-t-[#ea4335] -mt-[1px]"></div>
+            </div>
+          `;
+
+          const customIcon = L.divIcon({
+            className: 'custom-dropped-pin',
+            html: pinHtml,
+            iconSize: [28, 38],
+            iconAnchor: [14, 36],
+          });
+
+          const marker = L.marker([lat, lng], { icon: customIcon }).addTo(map);
+          clickMarkerRef.current = marker;
+        });
+
+        // Fit map smoothly into the designated boundary polygon
+        const polygonBounds = L.latLngBounds(
+          BOUNDARY_POLYGON.map(([lat, lng]) => L.latLng(lat, lng))
+        );
+        map.fitBounds(polygonBounds, {
+          padding: [60, 60],
+          maxZoom: 18,
         });
       }
 
       updateTiles(L);
-      updateMarkers(L);
+      drawBoundaryPolygon(L);
     });
 
     return () => {
@@ -75,7 +119,7 @@ export default function GoogleMap() {
     };
   }, []);
 
-  // Update Tile Layer
+  // Update Tile Layer (Roadmap or Satellite)
   const updateTiles = (L: any) => {
     const map = mapInstanceRef.current;
     if (!map) return;
@@ -105,138 +149,125 @@ export default function GoogleMap() {
     });
   }, [mapType]);
 
-  // Update Markers
-  const updateMarkers = (L: any) => {
+  // Draw Bounded Location Polygon
+  const drawBoundaryPolygon = (L: any) => {
     const map = mapInstanceRef.current;
     if (!map) return;
 
-    if (markersGroupRef.current) {
-      map.removeLayer(markersGroupRef.current);
+    if (polygonLayerRef.current) {
+      map.removeLayer(polygonLayerRef.current);
+    }
+    if (markerLayerRef.current) {
+      map.removeLayer(markerLayerRef.current);
     }
 
-    const group = L.layerGroup();
+    // Draw the defined boundary polygon
+    const polygon = L.polygon(BOUNDARY_POLYGON, {
+      color: '#1a73e8',
+      weight: 3,
+      fillColor: '#4285f4',
+      fillOpacity: 0.15,
+      dashArray: '4, 4',
+    });
+    polygon.addTo(map);
+    polygonLayerRef.current = polygon;
 
-    PLACES_IN_AREA.forEach((place) => {
-      const isSelected = selectedPlace?.id === place.id;
+    // Add clean corner point markers (A, B, C, D, E, F)
+    const markerGroup = L.layerGroup();
 
-      // Google Maps Red Pin HTML
-      const pinHtml = `
-        <div class="cursor-pointer flex flex-col items-center group transition-transform ${
-          isSelected ? 'scale-125 z-50' : 'hover:scale-110'
-        }">
-          <div class="w-8 h-8 rounded-full ${
-            isSelected ? 'bg-red-600' : 'bg-[#ea4335]'
-          } border-2 border-white shadow-lg flex items-center justify-center text-white text-xs font-bold">
-            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
-              <circle cx="12" cy="10" r="3"></circle>
-            </svg>
-          </div>
-          <div class="w-0 h-0 border-l-[5px] border-l-transparent border-r-[5px] border-r-transparent border-t-[6px] border-t-[#ea4335] -mt-[1px]"></div>
-          <div class="bg-white/95 text-slate-900 text-[11px] font-semibold px-2 py-0.5 rounded-md shadow-md mt-1 border border-slate-200 whitespace-nowrap">
-            ${place.name.split(' ')[0]} ${place.name.split(' ')[1] || ''}
-          </div>
+    BOUNDARY_POINTS.forEach((pt) => {
+      const pointHtml = `
+        <div class="flex items-center justify-center w-6 h-6 rounded-full bg-[#1a73e8] border-2 border-white shadow-md text-white font-bold text-[11px] cursor-pointer hover:scale-110 transition-transform">
+          ${pt.id}
         </div>
       `;
 
       const icon = L.divIcon({
-        className: 'custom-google-pin',
-        html: pinHtml,
-        iconSize: [36, 48],
-        iconAnchor: [18, 38],
+        className: 'custom-point-marker',
+        html: pointHtml,
+        iconSize: [24, 24],
+        iconAnchor: [12, 12],
       });
 
-      const marker = L.marker([place.lat, place.lng], { icon });
-      marker.on('click', (e: any) => {
+      const m = L.marker([pt.lat, pt.lng], { icon });
+      m.on('click', (e: any) => {
         L.DomEvent.stopPropagation(e);
-        setSelectedPlace(place);
-        setIsDropdownOpen(false);
+        setClickedCoord({ lat: pt.lat, lng: pt.lng });
       });
 
-      group.addLayer(marker);
+      markerGroup.addLayer(m);
     });
 
-    group.addTo(map);
-    markersGroupRef.current = group;
+    markerGroup.addTo(map);
+    markerLayerRef.current = markerGroup;
   };
 
-  useEffect(() => {
-    if (!mapInstanceRef.current) return;
-    import('leaflet').then((L) => {
-      updateMarkers(L);
-    });
-  }, [selectedPlace]);
-
-  // Pan to selected place
-  useEffect(() => {
-    if (!mapInstanceRef.current || !selectedPlace) return;
-    mapInstanceRef.current.flyTo([selectedPlace.lat, selectedPlace.lng], 18, {
-      animate: true,
-      duration: 1,
-    });
-  }, [selectedPlace]);
-
-  const filteredPlaces = PLACES_IN_AREA.filter((p) => {
-    const matchesQuery =
-      p.name.toLowerCase().includes(query.toLowerCase()) ||
-      p.category.toLowerCase().includes(query.toLowerCase());
-    const matchesCategory =
-      activeCategory === 'All' || p.category.toLowerCase().includes(activeCategory.toLowerCase());
-    return matchesQuery && matchesCategory;
-  });
-
-  const handleShare = () => {
-    if (navigator.clipboard && selectedPlace) {
-      navigator.clipboard.writeText(
-        `https://maps.google.com/?q=${selectedPlace.lat},${selectedPlace.lng}`
-      );
+  const handleCopyCoord = () => {
+    if (clickedCoord && navigator.clipboard) {
+      navigator.clipboard.writeText(`${clickedCoord.lat}, ${clickedCoord.lng}`);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }
   };
 
-  return (
-    <div className="relative w-screen h-screen overflow-hidden bg-slate-100 select-none">
-      {/* Search Bar (Google Maps style) */}
-      <div className="absolute top-4 left-4 z-30 flex flex-col gap-2 max-w-[400px] w-[calc(100vw-32px)]">
-        <div className="bg-white rounded-xl shadow-lg border border-slate-200/80 overflow-hidden flex items-center px-3 py-2.5 gap-2.5">
-          {/* Google Maps Multi-color pin or search icon */}
-          <div className="text-[#4285f4] flex items-center justify-center">
-            <Search className="w-5 h-5 text-slate-500" />
-          </div>
+  const handleSearchCoord = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!searchQuery) return;
+    const parts = searchQuery.split(',').map((p) => parseFloat(p.trim()));
+    if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+      const lat = parts[0];
+      const lng = parts[1];
+      setClickedCoord({ lat, lng });
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.flyTo([lat, lng], 18, { animate: true });
+      }
+    }
+  };
 
+  const handleRecenter = () => {
+    if (!mapInstanceRef.current) return;
+    import('leaflet').then((L) => {
+      const bounds = L.latLngBounds(
+        BOUNDARY_POLYGON.map(([lat, lng]) => L.latLng(lat, lng))
+      );
+      mapInstanceRef.current.fitBounds(bounds, {
+        padding: [60, 60],
+        animate: true,
+      });
+    });
+  };
+
+  return (
+    <div className="relative w-screen h-screen overflow-hidden bg-[#e5e3df] select-none font-sans">
+      {/* Search Bar (Google Maps style) */}
+      <div className="absolute top-4 left-4 z-30 max-w-[390px] w-[calc(100vw-32px)]">
+        <form
+          onSubmit={handleSearchCoord}
+          className="bg-white rounded-xl shadow-lg border border-slate-200/80 overflow-hidden flex items-center px-3.5 py-2.5 gap-2.5"
+        >
+          <Search className="w-5 h-5 text-slate-500 shrink-0" />
           <input
             type="text"
-            value={query}
-            onChange={(e) => {
-              setQuery(e.target.value);
-              setIsDropdownOpen(true);
-            }}
-            onFocus={() => setIsDropdownOpen(true)}
-            placeholder="Search Sri Shakthi Institute..."
-            className="flex-1 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none font-normal"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search location or coordinates (lat, lng)..."
+            className="flex-1 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none"
           />
-
-          {query && (
+          {searchQuery && (
             <button
-              onClick={() => {
-                setQuery('');
-                setIsDropdownOpen(false);
-              }}
+              type="button"
+              onClick={() => setSearchQuery('')}
               className="p-1 text-slate-400 hover:text-slate-600 rounded-full"
             >
               <X className="w-4 h-4" />
             </button>
           )}
-
           <div className="w-[1px] h-5 bg-slate-200" />
-
-          {/* Directions Blue Button */}
           <a
             href={
-              selectedPlace
-                ? `https://www.google.com/maps/dir/?api=1&destination=${selectedPlace.lat},${selectedPlace.lng}`
-                : `https://maps.app.goo.gl/3a39i7AbYPSL5FPg8?g_st=sa`
+              clickedCoord
+                ? `https://www.google.com/maps/dir/?api=1&destination=${clickedCoord.lat},${clickedCoord.lng}`
+                : `https://maps.google.com/?q=${MAP_CENTER.lat},${MAP_CENTER.lng}`
             }
             target="_blank"
             rel="noreferrer"
@@ -245,139 +276,52 @@ export default function GoogleMap() {
           >
             <Navigation className="w-4 h-4 fill-white" />
           </a>
-        </div>
-
-        {/* Suggestions Dropdown */}
-        {isDropdownOpen && (
-          <div className="bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden max-h-60 overflow-y-auto divide-y divide-slate-100">
-            {filteredPlaces.map((place) => (
-              <button
-                key={place.id}
-                onClick={() => {
-                  setSelectedPlace(place);
-                  setQuery(place.name);
-                  setIsDropdownOpen(false);
-                }}
-                className="w-full text-left px-4 py-2.5 flex items-center gap-3 hover:bg-slate-50 transition-colors"
-              >
-                <MapPin className="w-4 h-4 text-slate-400 shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <div className="text-xs font-semibold text-slate-800 truncate">
-                    {place.name}
-                  </div>
-                  <div className="text-[11px] text-slate-500 truncate">
-                    {place.category} · ★ {place.rating}
-                  </div>
-                </div>
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* Category Pills */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
-          {['All', 'Department', 'Library', 'Food', 'Sports', 'Hostel'].map((cat) => (
-            <button
-              key={cat}
-              onClick={() => setActiveCategory(cat)}
-              className={`px-3 py-1 rounded-full text-xs font-medium shrink-0 shadow-sm border transition-all ${
-                activeCategory === cat
-                  ? 'bg-[#1a73e8] text-white border-[#1a73e8]'
-                  : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-              }`}
-            >
-              {cat}
-            </button>
-          ))}
-        </div>
+        </form>
       </div>
 
-      {/* Place Detail Card (Google Maps Sidebar / Bottom Card) */}
-      {selectedPlace && (
-        <div className="absolute bottom-6 left-4 z-30 w-[calc(100vw-32px)] sm:w-[380px] bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col animate-in fade-in slide-in-from-bottom-3 duration-200">
-          <div className="relative h-40 w-full bg-slate-800">
-            <img
-              src={selectedPlace.imageUrl}
-              alt={selectedPlace.name}
-              className="w-full h-full object-cover"
-            />
-            <button
-              onClick={() => setSelectedPlace(null)}
-              className="absolute top-2.5 right-2.5 w-7 h-7 rounded-full bg-black/50 text-white flex items-center justify-center hover:bg-black/70"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-
+      {/* Coordinate Details Card (When a point or location is clicked) */}
+      {clickedCoord && (
+        <div className="absolute bottom-6 left-4 z-30 w-[calc(100vw-32px)] sm:w-[350px] bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-200">
           <div className="p-4 space-y-3">
-            <div>
-              <h2 className="text-base font-bold text-slate-900 leading-snug">
-                {selectedPlace.name}
-              </h2>
-              <div className="flex items-center gap-2 mt-0.5 text-xs text-slate-600">
-                <span className="font-semibold text-amber-500 flex items-center gap-0.5">
-                  <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-500" />
-                  {selectedPlace.rating}
-                </span>
-                <span>({selectedPlace.reviewsCount} reviews)</span>
-                <span>·</span>
-                <span className="text-slate-500">{selectedPlace.category}</span>
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center text-red-600">
+                  <MapPin className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">Selected Location</h3>
+                  <div className="text-xs font-mono text-slate-600">
+                    {clickedCoord.lat.toFixed(6)}, {clickedCoord.lng.toFixed(6)}
+                  </div>
+                </div>
               </div>
+              <button
+                onClick={() => setClickedCoord(null)}
+                className="p-1 text-slate-400 hover:text-slate-600 rounded-full"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
 
-            {/* Quick Actions Row */}
-            <div className="grid grid-cols-3 gap-2 pt-1 border-t border-slate-100">
+            {/* Quick Actions */}
+            <div className="flex items-center gap-2 pt-1 border-t border-slate-100">
               <a
-                href={`https://www.google.com/maps/dir/?api=1&destination=${selectedPlace.lat},${selectedPlace.lng}`}
+                href={`https://www.google.com/maps/dir/?api=1&destination=${clickedCoord.lat},${clickedCoord.lng}`}
                 target="_blank"
                 rel="noreferrer"
-                className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-[#1a73e8] hover:bg-[#1557b0] text-white text-xs font-semibold shadow-md transition-colors"
+                className="flex-1 py-2 px-3 rounded-xl bg-[#1a73e8] hover:bg-[#1557b0] text-white text-xs font-semibold flex items-center justify-center gap-1.5 shadow-sm transition-colors"
               >
                 <Navigation className="w-3.5 h-3.5 fill-white" />
                 <span>Directions</span>
               </a>
 
               <button
-                onClick={() => setIsSaved(!isSaved)}
-                className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl border text-xs font-semibold transition-colors ${
-                  isSaved
-                    ? 'bg-amber-50 border-amber-300 text-amber-700'
-                    : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-                }`}
+                onClick={handleCopyCoord}
+                className="py-2 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors"
               >
-                <Bookmark className={`w-3.5 h-3.5 ${isSaved ? 'fill-amber-600' : ''}`} />
-                <span>{isSaved ? 'Saved' : 'Save'}</span>
+                {copied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                <span>{copied ? 'Copied' : 'Copy'}</span>
               </button>
-
-              <button
-                onClick={handleShare}
-                className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold transition-colors"
-              >
-                <Share2 className="w-3.5 h-3.5" />
-                <span>{copied ? 'Copied' : 'Share'}</span>
-              </button>
-            </div>
-
-            {/* Address & Status info */}
-            <div className="space-y-2 pt-1 text-xs text-slate-600 border-t border-slate-100">
-              <div className="flex items-start gap-2.5">
-                <MapPin className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
-                <span>{selectedPlace.address}</span>
-              </div>
-
-              <div className="flex items-center gap-2.5">
-                <Clock className="w-4 h-4 text-slate-400 shrink-0" />
-                <span className="font-medium text-emerald-600">{selectedPlace.openStatus}</span>
-              </div>
-
-              {selectedPlace.phone && (
-                <div className="flex items-center gap-2.5">
-                  <Phone className="w-4 h-4 text-slate-400 shrink-0" />
-                  <a href={`tel:${selectedPlace.phone}`} className="text-[#1a73e8] hover:underline">
-                    {selectedPlace.phone}
-                  </a>
-                </div>
-              )}
             </div>
           </div>
         </div>
@@ -387,28 +331,21 @@ export default function GoogleMap() {
       <div ref={mapContainerRef} className="w-full h-full z-0" />
 
       {/* Bottom Left Layers Button (Map / Satellite) */}
-      <div className="absolute bottom-6 left-4 sm:left-[410px] z-30">
+      <div className="absolute bottom-6 left-4 sm:left-[370px] z-30">
         <button
           onClick={() => setMapType(mapType === 'roadmap' ? 'satellite' : 'roadmap')}
-          className="bg-white rounded-xl shadow-lg border border-slate-200 p-2 flex items-center gap-2 text-xs font-semibold text-slate-800 hover:bg-slate-50 transition-colors"
+          className="bg-white rounded-xl shadow-lg border border-slate-200 px-3 py-2 flex items-center gap-2 text-xs font-semibold text-slate-800 hover:bg-slate-50 transition-colors"
         >
           <Layers className="w-4 h-4 text-[#1a73e8]" />
           <span>{mapType === 'roadmap' ? 'Satellite' : 'Map View'}</span>
         </button>
       </div>
 
-      {/* Bottom Right Controls (Zoom +/-, My Location) */}
+      {/* Bottom Right Controls (Zoom +/-, Recenter) */}
       <div className="absolute bottom-6 right-4 z-30 flex flex-col gap-2">
         <button
-          onClick={() => {
-            if (mapInstanceRef.current) {
-              mapInstanceRef.current.flyTo(
-                [SRI_SHAKTHI_LOCATION.lat, SRI_SHAKTHI_LOCATION.lng],
-                SRI_SHAKTHI_LOCATION.zoom
-              );
-            }
-          }}
-          title="Center on Sri Shakthi Institute"
+          onClick={handleRecenter}
+          title="Fit to Location Boundary"
           className="w-10 h-10 rounded-xl bg-white border border-slate-200 shadow-lg flex items-center justify-center text-slate-700 hover:bg-slate-50 transition-colors"
         >
           <LocateFixed className="w-5 h-5 text-[#1a73e8]" />
