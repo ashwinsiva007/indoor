@@ -12,6 +12,8 @@ import {
   MapPin,
   Copy,
   Check,
+  Navigation2,
+  AlertCircle,
 } from 'lucide-react';
 import {
   BOUNDARY_POLYGON,
@@ -24,9 +26,19 @@ export default function GoogleMap() {
   const tileLayerRef = useRef<any>(null);
   const maskLayerRef = useRef<any>(null);
   const clickMarkerRef = useRef<any>(null);
+  const userGpsMarkerRef = useRef<any>(null);
+  const userGpsCircleRef = useRef<any>(null);
+  const watchIdRef = useRef<number | null>(null);
 
   const [mapType, setMapType] = useState<'roadmap' | 'satellite'>('roadmap');
   const [clickedCoord, setClickedCoord] = useState<{ lat: number; lng: number } | null>(null);
+  const [userLocation, setUserLocation] = useState<{
+    lat: number;
+    lng: number;
+    accuracy: number;
+  } | null>(null);
+  const [isGpsActive, setIsGpsActive] = useState<boolean>(false);
+  const [gpsError, setGpsError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -55,7 +67,7 @@ export default function GoogleMap() {
           zoom: MAP_CENTER.zoom,
           zoomControl: false,
           attributionControl: false,
-          minZoom: 16,
+          minZoom: 15,
           maxZoom: 21,
           maxBounds: maxBounds,
           maxBoundsViscosity: 0.9,
@@ -113,6 +125,9 @@ export default function GoogleMap() {
 
     return () => {
       isMounted = false;
+      if (watchIdRef.current !== null && navigator.geolocation) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+      }
     };
   }, []);
 
@@ -156,7 +171,6 @@ export default function GoogleMap() {
       map.removeLayer(maskLayerRef.current);
     }
 
-    // Outer world ring with the inner polygon hole
     const worldMask = [
       [
         [-85, -180],
@@ -168,16 +182,121 @@ export default function GoogleMap() {
     ];
 
     const mask = L.polygon(worldMask, {
-      stroke: false, // Blue line removed!
+      stroke: false,
       color: 'transparent',
       weight: 0,
       fillColor: mapType === 'satellite' ? '#0b0f19' : '#f8f9fa',
-      fillOpacity: 1, // Completely hides everything outside
+      fillOpacity: 1,
       interactive: false,
     });
 
     mask.addTo(map);
     maskLayerRef.current = mask;
+  };
+
+  // Live GPS User Location Tracker
+  const handleToggleGps = () => {
+    if (!navigator.geolocation) {
+      setGpsError('Geolocation is not supported by your browser.');
+      setTimeout(() => setGpsError(null), 3500);
+      return;
+    }
+
+    if (isGpsActive) {
+      // Turn off GPS tracking
+      if (watchIdRef.current !== null) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+        watchIdRef.current = null;
+      }
+      setIsGpsActive(false);
+      setUserLocation(null);
+      if (mapInstanceRef.current) {
+        if (userGpsMarkerRef.current) {
+          mapInstanceRef.current.removeLayer(userGpsMarkerRef.current);
+          userGpsMarkerRef.current = null;
+        }
+        if (userGpsCircleRef.current) {
+          mapInstanceRef.current.removeLayer(userGpsCircleRef.current);
+          userGpsCircleRef.current = null;
+        }
+      }
+      return;
+    }
+
+    // Start GPS tracking
+    setIsGpsActive(true);
+    setGpsError(null);
+
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        const lat = parseFloat(pos.coords.latitude.toFixed(6));
+        const lng = parseFloat(pos.coords.longitude.toFixed(6));
+        const accuracy = Math.round(pos.coords.accuracy || 10);
+
+        setUserLocation({ lat, lng, accuracy });
+
+        import('leaflet').then((L) => {
+          const map = mapInstanceRef.current;
+          if (!map) return;
+
+          // Remove previous GPS layers
+          if (userGpsMarkerRef.current) map.removeLayer(userGpsMarkerRef.current);
+          if (userGpsCircleRef.current) map.removeLayer(userGpsCircleRef.current);
+
+          // GPS Accuracy Circle
+          const accuracyCircle = L.circle([lat, lng], {
+            radius: Math.max(5, accuracy),
+            color: '#4285f4',
+            weight: 1,
+            fillColor: '#4285f4',
+            fillOpacity: 0.15,
+          }).addTo(map);
+          userGpsCircleRef.current = accuracyCircle;
+
+          // Google Maps Pulsing Blue GPS Dot
+          const gpsIconHtml = `
+            <div class="relative flex items-center justify-center w-6 h-6">
+              <div class="absolute w-6 h-6 rounded-full bg-blue-500/40 animate-ping"></div>
+              <div class="relative w-4 h-4 rounded-full bg-[#1a73e8] border-2 border-white shadow-lg flex items-center justify-center">
+                <div class="w-1.5 h-1.5 rounded-full bg-white"></div>
+              </div>
+            </div>
+          `;
+
+          const gpsIcon = L.divIcon({
+            className: 'custom-gps-user-dot',
+            html: gpsIconHtml,
+            iconSize: [24, 24],
+            iconAnchor: [12, 12],
+          });
+
+          const userMarker = L.marker([lat, lng], { icon: gpsIcon }).addTo(map);
+          userGpsMarkerRef.current = userMarker;
+
+          // Pan to user's location
+          map.flyTo([lat, lng], Math.max(18, map.getZoom()), {
+            animate: true,
+            duration: 1,
+          });
+        });
+      },
+      (err) => {
+        setIsGpsActive(false);
+        setGpsError(
+          err.code === 1
+            ? 'Please allow location permission in your browser.'
+            : 'Unable to retrieve GPS location.'
+        );
+        setTimeout(() => setGpsError(null), 4000);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0,
+      }
+    );
+
+    watchIdRef.current = watchId;
   };
 
   const handleCopyCoord = () => {
@@ -257,6 +376,24 @@ export default function GoogleMap() {
         </form>
       </div>
 
+      {/* GPS Error Notification Toast */}
+      {gpsError && (
+        <div className="absolute top-16 inset-x-4 sm:inset-x-auto sm:left-4 sm:w-[380px] z-40 bg-red-600 text-white px-3.5 py-2.5 rounded-2xl shadow-xl flex items-center gap-2 text-xs font-medium animate-in fade-in slide-in-from-top-2">
+          <AlertCircle className="w-4 h-4 shrink-0" />
+          <span className="flex-1">{gpsError}</span>
+        </div>
+      )}
+
+      {/* Live GPS Active Status Bar on Mobile */}
+      {isGpsActive && userLocation && (
+        <div className="absolute top-16 left-3 sm:left-4 z-30 bg-[#1a73e8] text-white px-3 py-1.5 rounded-full shadow-lg flex items-center gap-2 text-[11px] font-semibold animate-pulse">
+          <Navigation2 className="w-3.5 h-3.5 fill-white" />
+          <span>
+            GPS Active ({userLocation.lat.toFixed(5)}, {userLocation.lng.toFixed(5)}) · ±{userLocation.accuracy}m
+          </span>
+        </div>
+      )}
+
       {/* Coordinate Details Bottom Sheet / Card on Mobile */}
       {clickedCoord && (
         <div className="absolute bottom-4 inset-x-3 sm:inset-x-auto sm:left-4 sm:w-[340px] z-30 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200/90 dark:border-slate-800 overflow-hidden animate-in fade-in slide-in-from-bottom-3 duration-200">
@@ -319,16 +456,31 @@ export default function GoogleMap() {
         </button>
       </div>
 
-      {/* Bottom Floating Controls (Zoom +/-, Recenter) */}
+      {/* Bottom Floating Controls (GPS My Location, Zoom +/-, Recenter) */}
       <div className="absolute bottom-4 right-3 sm:right-4 z-20 flex flex-col gap-2">
+        {/* GPS Live My Location Button */}
+        <button
+          onClick={handleToggleGps}
+          title={isGpsActive ? 'Stop GPS Tracking' : 'Track My GPS Location'}
+          className={`w-10 h-10 rounded-2xl backdrop-blur-md border shadow-xl flex items-center justify-center active:scale-95 transition-all ${
+            isGpsActive
+              ? 'bg-[#1a73e8] border-[#1a73e8] text-white shadow-blue-500/40 ring-4 ring-blue-500/20'
+              : 'bg-white/95 dark:bg-slate-900/95 border-slate-200/90 dark:border-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'
+          }`}
+        >
+          <LocateFixed className={`w-5 h-5 ${isGpsActive ? 'text-white animate-spin-slow' : 'text-[#1a73e8]'}`} />
+        </button>
+
+        {/* Fit to Polygon Area Button */}
         <button
           onClick={handleRecenter}
           title="Fit to Area"
           className="w-10 h-10 rounded-2xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200/90 dark:border-slate-800 shadow-xl flex items-center justify-center text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 active:scale-95 transition-all"
         >
-          <LocateFixed className="w-5 h-5 text-[#1a73e8]" />
+          <MapPin className="w-4 h-4 text-slate-600 dark:text-slate-300" />
         </button>
 
+        {/* Zoom Controls */}
         <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-xl overflow-hidden flex flex-col">
           <button
             onClick={() => mapInstanceRef.current?.zoomIn()}
