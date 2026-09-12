@@ -2,8 +2,8 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Indoor Navigation Platform | Next-Gen Spatial Wayfinding MVP',
-  description: 'Web-based Indoor Navigation Platform featuring interactive 2D blueprint mapping, turn-by-turn route calculations, and floor plan editor.',
+  title: 'Sri Shakthi Institute of Engineering and Technology | Interactive Campus Map',
+  description: 'Interactive Google Maps-style wayfinding, directions, and building guide for Sri Shakthi Institute of Engineering and Technology (SIET), Coimbatore.',
 };
 
 export default function RootLayout({
